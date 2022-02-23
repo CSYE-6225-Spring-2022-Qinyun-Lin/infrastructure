@@ -1,0 +1,107 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: A sample template for CSYE6225 assignment 3
+Parameters:
+  VpcCidrBlock:
+    Description: "Cidr block for VPC"
+    Type: String
+    Default: "10.0.0.0/16"
+  SubCidrBlockA:
+    Description: "Cidr block for subnet a"
+    Type: String
+    Default: "10.0.0.0/24"
+  SubCidrBlockB:
+    Description: "Cidr block for subnet b"
+    Type: String
+    Default: "10.0.1.0/24"
+  SubCidrBlockC:
+    Description: "Cidr block for subnet c"
+    Type: String
+    Default: "10.0.2.0/24"
+  DestinationCIDRblock:
+    Description: "Cidr block for destination in route table"
+    Type: String
+    Default: "0.0.0.0/0"
+
+
+Resources:
+  myVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidrBlock
+      EnableDnsSupport: 'true'
+      EnableDnsHostnames: 'true'
+      Tags:
+       - Key: Name
+         Value: !Ref AWS::StackName
+  mySubnetA:
+    Type: AWS::EC2::Subnet
+    Properties: 
+      VpcId:
+        Ref: myVPC
+      AvailabilityZone: "us-east-1a"
+      CidrBlock: !Ref SubCidrBlockA
+      Tags: 
+      - Key: Name
+        Value: !Ref AWS::StackName
+  mySubnetB:
+    Type: AWS::EC2::Subnet
+    Properties: 
+      VpcId:
+        Ref: myVPC
+      AvailabilityZone: "us-east-1b"
+      CidrBlock: !Ref SubCidrBlockB
+      Tags: 
+      - Key: Name
+        Value: !Ref AWS::StackName  
+  mySubnetC:
+    Type: AWS::EC2::Subnet
+    Properties: 
+      VpcId: !Ref myVPC
+      AvailabilityZone: "us-east-1c"
+      CidrBlock: !Ref SubCidrBlockC
+      Tags: 
+      - Key: Name
+        Value: !Ref AWS::StackName
+  
+  InternetGateway:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties:
+      Tags:
+      - Key: Name
+        Value: !Ref AWS::StackName
+  AttachGateway:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !Ref myVPC
+      InternetGatewayId: !Ref InternetGateway
+  
+  RouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref myVPC
+      Tags:
+      - Key: Name
+        Value: !Ref AWS::StackName
+  Route:
+    Type: 'AWS::EC2::Route'
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref RouteTable
+      DestinationCidrBlock: !Ref DestinationCIDRblock
+      GatewayId: !Ref InternetGateway
+  
+  SubnetRouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref mySubnetA
+      RouteTableId: !Ref RouteTable
+  SubnetRouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref mySubnetB
+      RouteTableId: !Ref RouteTable
+  SubnetRouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref mySubnetC
+      RouteTableId: !Ref RouteTable
