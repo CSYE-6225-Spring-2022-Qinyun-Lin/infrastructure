@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: A sample template for CSYE6225 assignment 3
+Description: A sample template for CSYE6225 assignment 4
 Parameters:
   VpcCidrBlock:
     Description: "Cidr block for VPC"
@@ -21,6 +21,10 @@ Parameters:
     Description: "Cidr block for destination in route table"
     Type: String
     Default: "0.0.0.0/0"
+  AMIid:
+    Description: "Amazon Machine Image Id"
+    Type: String
+    Default: "ami-0a27226036e2ee9a0"
 
 
 Resources:
@@ -40,6 +44,7 @@ Resources:
         Ref: myVPC
       AvailabilityZone: "us-east-1a"
       CidrBlock: !Ref SubCidrBlockA
+      MapPublicIpOnLaunch: true
       Tags: 
       - Key: Name
         Value: !Ref AWS::StackName
@@ -90,18 +95,60 @@ Resources:
       DestinationCidrBlock: !Ref DestinationCIDRblock
       GatewayId: !Ref InternetGateway
   
-  SubnetRouteTableAssociation:
+  SubnetRouteTableAssociationA:
     Type: 'AWS::EC2::SubnetRouteTableAssociation'
     Properties:
       SubnetId: !Ref mySubnetA
       RouteTableId: !Ref RouteTable
-  SubnetRouteTableAssociation:
+  SubnetRouteTableAssociationB:
     Type: 'AWS::EC2::SubnetRouteTableAssociation'
     Properties:
       SubnetId: !Ref mySubnetB
       RouteTableId: !Ref RouteTable
-  SubnetRouteTableAssociation:
+  SubnetRouteTableAssociationC:
     Type: 'AWS::EC2::SubnetRouteTableAssociation'
     Properties:
       SubnetId: !Ref mySubnetC
       RouteTableId: !Ref RouteTable
+
+  applicationSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties: 
+      GroupDescription: "application Security Group"
+      VpcId: !Ref myVPC
+      SecurityGroupEgress:
+      - IpProtocol: -1
+        FromPort: 0
+        ToPort: 0
+        CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 3333
+        ToPort: 3333
+        CidrIp: 0.0.0.0/0
+
+  myEC2:
+    Type: AWS::EC2::Instance
+    Properties: 
+      BlockDeviceMappings: 
+      - DeviceName: "/dev/xvda"
+        Ebs: 
+          VolumeType: "gp2"
+          DeleteOnTermination: "true"
+          VolumeSize: "20"
+      SecurityGroupIds: [!Ref applicationSecurityGroup]
+      ImageId: !Ref AMIid
+      InstanceType: "t2.micro"
+      SubnetId: !Ref mySubnetA
