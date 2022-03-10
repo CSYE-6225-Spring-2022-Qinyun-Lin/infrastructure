@@ -17,6 +17,18 @@ Parameters:
     Description: "Cidr block for subnet c"
     Type: String
     Default: "10.0.2.0/24"
+  PrivateSubCidrBlockA:
+    Description: "Cidr block for private subnet a"
+    Type: String
+    Default: "10.0.3.0/24"
+  PrivateSubCidrBlockB:
+    Description: "Cidr block for private subnet b"
+    Type: String
+    Default: "10.0.4.0/24"
+  PrivateSubCidrBlockC:
+    Description: "Cidr block for private subnet c"
+    Type: String
+    Default: "10.0.5.0/24"
   DestinationCIDRblock:
     Description: "Cidr block for destination in route table"
     Type: String
@@ -24,8 +36,23 @@ Parameters:
   AMIid:
     Description: "Amazon Machine Image Id"
     Type: String
-    Default: "ami-0a27226036e2ee9a0"
+    Default: "ami-0aed341e2403a1f74"
+  CurrentProfile:
+    Type: String
+    Default: "demo"
+  ProdProfile:
+    Type: String
+    Default: "demo"
+  DbUserName:
+    Type: String
+    Default: "csye6225"
+  DbUserPassword:
+    Type: String
+    Default: "adminadmin!"
 
+
+Conditions:
+  UseProdCondition: !Equals [!Ref CurrentProfile, !Ref ProdProfile]
 
 Resources:
   myVPC:
@@ -37,7 +64,8 @@ Resources:
       Tags:
        - Key: Name
          Value: !Ref AWS::StackName
-  mySubnetA:
+
+  PublicSubnetA:
     Type: AWS::EC2::Subnet
     Properties: 
       VpcId:
@@ -47,27 +75,62 @@ Resources:
       MapPublicIpOnLaunch: true
       Tags: 
       - Key: Name
-        Value: !Ref AWS::StackName
-  mySubnetB:
+        Value: !Sub PublicSubA-${AWS::StackName}
+  PublicSubnetB:
     Type: AWS::EC2::Subnet
     Properties: 
       VpcId:
         Ref: myVPC
       AvailabilityZone: "us-east-1b"
       CidrBlock: !Ref SubCidrBlockB
+      MapPublicIpOnLaunch: true
       Tags: 
       - Key: Name
-        Value: !Ref AWS::StackName  
-  mySubnetC:
+        Value: !Sub PublicSubB-${AWS::StackName}
+  PublicSubnetC:
     Type: AWS::EC2::Subnet
     Properties: 
       VpcId: !Ref myVPC
       AvailabilityZone: "us-east-1c"
       CidrBlock: !Ref SubCidrBlockC
+      MapPublicIpOnLaunch: true
       Tags: 
       - Key: Name
-        Value: !Ref AWS::StackName
+        Value: !Sub PublicSubC-${AWS::StackName}
   
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties: 
+      VpcId:
+        Ref: myVPC
+      AvailabilityZone: "us-east-1a"
+      CidrBlock: !Ref PrivateSubCidrBlockA
+      MapPublicIpOnLaunch: false
+      Tags: 
+      - Key: Name
+        Value: !Sub PrivateSubA-${AWS::StackName}
+  PrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties: 
+      VpcId:
+        Ref: myVPC
+      AvailabilityZone: "us-east-1b"
+      CidrBlock: !Ref PrivateSubCidrBlockB
+      MapPublicIpOnLaunch: false
+      Tags: 
+      - Key: Name
+        Value: !Sub PrivateSubB-${AWS::StackName}
+  PrivateSubnetC:
+    Type: AWS::EC2::Subnet
+    Properties: 
+      VpcId: !Ref myVPC
+      AvailabilityZone: "us-east-1c"
+      CidrBlock: !Ref PrivateSubCidrBlockC
+      MapPublicIpOnLaunch: false
+      Tags: 
+      - Key: Name
+        Value: !Sub PrivateSubC-${AWS::StackName}
+
   InternetGateway:
     Type: 'AWS::EC2::InternetGateway'
     Properties:
@@ -80,36 +143,61 @@ Resources:
       VpcId: !Ref myVPC
       InternetGatewayId: !Ref InternetGateway
   
-  RouteTable:
+  PublicRouteTable:
     Type: 'AWS::EC2::RouteTable'
     Properties:
       VpcId: !Ref myVPC
       Tags:
       - Key: Name
         Value: !Ref AWS::StackName
-  Route:
+  PublicRoute:
     Type: 'AWS::EC2::Route'
     DependsOn: AttachGateway
     Properties:
-      RouteTableId: !Ref RouteTable
+      RouteTableId: !Ref PublicRouteTable
       DestinationCidrBlock: !Ref DestinationCIDRblock
       GatewayId: !Ref InternetGateway
   
-  SubnetRouteTableAssociationA:
+  PrivateRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref myVPC
+      Tags:
+      - Key: Name
+        Value: !Ref AWS::StackName
+
+
+  PublicSubnetRouteTableAssociationA:
     Type: 'AWS::EC2::SubnetRouteTableAssociation'
     Properties:
-      SubnetId: !Ref mySubnetA
-      RouteTableId: !Ref RouteTable
-  SubnetRouteTableAssociationB:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRouteTable
+  PublicSubnetRouteTableAssociationB:
     Type: 'AWS::EC2::SubnetRouteTableAssociation'
     Properties:
-      SubnetId: !Ref mySubnetB
-      RouteTableId: !Ref RouteTable
-  SubnetRouteTableAssociationC:
+      SubnetId: !Ref PublicSubnetB
+      RouteTableId: !Ref PublicRouteTable
+  PublicSubnetRouteTableAssociationC:
     Type: 'AWS::EC2::SubnetRouteTableAssociation'
     Properties:
-      SubnetId: !Ref mySubnetC
-      RouteTableId: !Ref RouteTable
+      SubnetId: !Ref PublicSubnetC
+      RouteTableId: !Ref PublicRouteTable
+
+  PrivateSubnetRouteTableAssociationA:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PrivateSubnetA
+      RouteTableId: !Ref PrivateRouteTable
+  PrivateSubnetRouteTableAssociationB:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PrivateSubnetB
+      RouteTableId: !Ref PrivateRouteTable
+  PrivateSubnetRouteTableAssociationAC:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PrivateSubnetC
+      RouteTableId: !Ref PrivateRouteTable
 
   applicationSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -139,6 +227,22 @@ Resources:
         ToPort: 3333
         CidrIp: 0.0.0.0/0
 
+  databaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties: 
+      GroupDescription: "database Security Group"
+      VpcId: !Ref myVPC
+      SecurityGroupEgress:
+      - IpProtocol: -1
+        FromPort: 0
+        ToPort: 0
+        CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 3306
+        ToPort: 3306
+        SourceSecurityGroupId: !Ref applicationSecurityGroup
+
   myEC2:
     Type: AWS::EC2::Instance
     Properties: 
@@ -151,4 +255,124 @@ Resources:
       SecurityGroupIds: [!Ref applicationSecurityGroup]
       ImageId: !Ref AMIid
       InstanceType: "t2.micro"
-      SubnetId: !Ref mySubnetA
+      SubnetId: !Ref PublicSubnetA
+      IamInstanceProfile: !Ref InstanceProfile
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash
+            yum update -y
+
+            # create credentials
+            cd /home/ec2-user/
+            mkdir webConfig
+            cd webConfig
+            echo "${myBucket}" > bucket_name.txt
+            echo "${myRDSInstance.Endpoint.Address}" > mysql_host.txt
+            echo "${DbUserName}, ${DbUserPassword}" > mysql_key.txt
+
+            # set up database
+            cd ../webservice
+            python3 src/db_operation.py
+
+            # add webapp to systemd
+            cp /home/webservice/systemd/webapp.service /etc/systemd/system/webapp.service
+            chmod 644 /etc/systemd/system/webapp.service
+            yum install systemd -y
+            systemctl daemon-reload
+            systemctl enable webapp.service
+            systemctl start webapp.service
+
+  myBucket:
+    Type: AWS::S3::Bucket
+    Properties: 
+      AccessControl: Private
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: 'AES256'
+      BucketName: 
+        !If [UseProdCondition, 
+        !Join ['.', [!Select [2, !Split ['/', !Ref AWS::StackId]], "prod.linqinyun.me"]], 
+        !Join ['.', [!Select [2, !Split ['/', !Ref AWS::StackId]], "dev.linqinyun.me"]]]
+      LifecycleConfiguration:
+        Rules:
+          - Id: STANDARD_IA_Rule
+            Status: Enabled
+            ExpirationInDays: 31
+            Transitions:
+              - TransitionInDays: 30
+                StorageClass: STANDARD_IA
+
+  webAppS3Policy:
+    Type: AWS::IAM::Policy
+    Properties: 
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Resource: [
+                !Sub "arn:aws:s3:::${myBucket}",
+                !Sub "arn:aws:s3:::${myBucket}/*"
+            ]
+            Action:
+              - 's3:*'
+      PolicyName: "WebAppS3"
+      Roles: [!Ref EC2CSYE6225Role]
+
+  EC2CSYE6225Role:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      RoleName: "EC2-CSYE6225-1"
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties: 
+      InstanceProfileName: ec2-instance-profile
+      Path: /
+      Roles: 
+       - !Ref EC2CSYE6225Role
+
+  myRDSInstance:
+    Type: AWS::RDS::DBInstance
+    Properties: 
+      DBName: "csye6225"
+      Engine: "mysql"
+      EngineVersion: "5.7.36"
+      DBInstanceClass: "db.t3.micro"
+      AllocatedStorage: "5"
+      DBInstanceIdentifier: "csye6225"
+      MasterUsername: !Ref DbUserName
+      MasterUserPassword: !Ref DbUserPassword
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      DBParameterGroupName: !Ref DBParameterGroup
+      VPCSecurityGroups: [!Ref databaseSecurityGroup]
+      PubliclyAccessible: false
+      MultiAZ: false
+
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties: 
+      DBSubnetGroupDescription: "Subnet group"
+      DBSubnetGroupName: "mySubnetGroup"
+      SubnetIds: 
+        [!Ref PrivateSubnetA, !Ref PrivateSubnetB]
+
+  DBParameterGroup:
+    Type: 'AWS::RDS::DBParameterGroup'
+    Properties:
+      Description: CloudFormation MySQL Parameter Group
+      Family: mysql5.7
+      Parameters:
+        sql_mode: IGNORE_SPACE
+        max_allowed_packet: 1024
+
