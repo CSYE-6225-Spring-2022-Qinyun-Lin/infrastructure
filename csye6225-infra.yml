@@ -36,7 +36,7 @@ Parameters:
   AMIid:
     Description: "Amazon Machine Image Id"
     Type: String
-    Default: "ami-0aed341e2403a1f74"
+    Default: "ami-0ac35fc045df0d364"
   CurrentProfile:
     Type: String
     Default: "demo"
@@ -276,7 +276,7 @@ Resources:
             python3 src/db_operation.py
 
             # add webapp to systemd
-            cp /home/webservice/systemd/webapp.service /etc/systemd/system/webapp.service
+            cp /home/ec2-user/webservice/systemd/webapp.service /etc/systemd/system/webapp.service
             chmod 644 /etc/systemd/system/webapp.service
             yum install systemd -y
             systemctl daemon-reload
