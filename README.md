@@ -10,11 +10,6 @@ aws configure --profile=demo
 aws configure --profile=demo set region us-east-1
 ```
 
-## command for creating vpc
-```
-aws ec2 create-vpc --cidr-block 10.0.0.0/16 --instance-tenancy default --no-amazon-provided-ipv6-cidr-block
-```
-
 ## command for creating stack
 Use default ciderblock
 ```
@@ -23,7 +18,7 @@ aws cloudformation create-stack --profile=dev --stack-name myVpc --template-body
 
 Use given AMI id
 ```
-aws cloudformation create-stack --profile=dev --stack-name myVpc --template-body file://csye6225-infra.yml --parameters ParameterKey=AMIid,ParameterValue="ami-02437b1f201ff8643"
+aws cloudformation create-stack --profile=demo --capabilities CAPABILITY_NAMED_IAM --template-body file://csye6225-infra.yml --parameters ParameterKey=AMIid,ParameterValue="ami-0d7cf0836039917d3" ParameterKey=CurrentProfile,ParameterValue="demo" --stack-name myVpc
 ```
 
 Use given ciderblock
@@ -34,6 +29,16 @@ aws cloudformation create-stack --profile=dev --stack-name myVpc --template-body
 ## command for deleting stack
 ```
 aws cloudformation delete-stack --profile=dev  --stack-name myVpc
+```
+
+delete bucket before deleting stack
+```
+aws --profile=demo s3 rm s3://0d969d70-a038-11ec-b6a1-12e24c93dc83.prod.linqinyun.me --recursive
+```
+
+## command for creating vpc
+```
+aws ec2 create-vpc --cidr-block 10.0.0.0/16 --instance-tenancy default --no-amazon-provided-ipv6-cidr-block
 ```
 
 ## Other useful command
