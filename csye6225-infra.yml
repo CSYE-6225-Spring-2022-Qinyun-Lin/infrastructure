@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: A sample template for CSYE6225 assignment 4
+Description: A sample template for CSYE6225 assignment
 Parameters:
   VpcCidrBlock:
     Description: "Cidr block for VPC"
@@ -54,7 +54,189 @@ Parameters:
 Conditions:
   UseProdCondition: !Equals [!Ref CurrentProfile, !Ref ProdProfile]
 
+
 Resources:
+  asgLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub '${AWS::StackName}-launch-config'
+      LaunchTemplateData:
+        BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 20
+            VolumeType: "gp2"
+            DeleteOnTermination: true
+        ImageId: !Ref AMIid
+        InstanceType: t2.micro
+        SecurityGroupIds: 
+          - !Ref applicationSecurityGroup
+        IamInstanceProfile: 
+          Name: !Ref InstanceProfile
+        UserData:
+          Fn::Base64:
+            !Sub |
+              #!/bin/bash
+              yum update -y
+
+              # create credentials
+              cd /home/ec2-user/
+              mkdir webConfig
+              cd webConfig
+              echo "${myBucket}" > bucket_name.txt
+              echo "${myRDSInstance.Endpoint.Address}" > mysql_host.txt
+              echo "${DbUserName}, ${DbUserPassword}" > mysql_key.txt
+
+              # set up database
+              cd ../webservice
+              python3 src/db_operation.py
+
+              # add webapp to systemd
+              cp /home/ec2-user/webservice/systemd/webapp.service /etc/systemd/system/webapp.service
+              chmod 644 /etc/systemd/system/webapp.service
+              yum install systemd -y
+              systemctl daemon-reload
+              systemctl enable webapp.service
+              systemctl start webapp.service
+
+  asgWebApp:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: !Sub ${AWS::StackName}-asg
+      AvailabilityZones:
+        - us-east-1a
+        - us-east-1b
+        - us-east-1c
+      Cooldown: '60'
+      DesiredCapacity: '3'
+      HealthCheckGracePeriod: 90
+      HealthCheckType: EC2
+      LaunchTemplate:
+        LaunchTemplateId: !Ref asgLaunchTemplate
+        Version: !GetAtt asgLaunchTemplate.LatestVersionNumber
+      MaxSize: '5'
+      MinSize: '3'
+      NewInstancesProtectedFromScaleIn: false
+      Tags:
+        - Key: Application
+          Value: WebApp
+          PropagateAtLaunch: "true"
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-asg
+          PropagateAtLaunch: "true"
+      TargetGroupARNs:
+        - !Ref loadBalancerTargetGroup
+      VPCZoneIdentifier:
+        - !Ref PublicSubnetA
+        - !Ref PublicSubnetB
+        - !Ref PublicSubnetC
+
+  asgScaleUpPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: !Ref asgWebApp
+      AdjustmentType: ChangeInCapacity
+      Cooldown: 60
+      PolicyType: SimpleScaling
+      ScalingAdjustment: 1
+  asgScaleDownPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: !Ref asgWebApp
+      AdjustmentType: ChangeInCapacity
+      Cooldown: 60
+      PolicyType: SimpleScaling
+      ScalingAdjustment: -1
+
+  CPUAlarmHigh:
+     Type: AWS::CloudWatch::Alarm
+     Properties:
+        AlarmDescription: "Scale-up if CPU > 5% for 60 seconds"
+        MetricName: CPUUtilization
+        Namespace: AWS/EC2
+        Statistic: Average
+        Period: 60
+        EvaluationPeriods: 1
+        Threshold: 5
+        TreatMissingData: notBreaching
+        AlarmActions: 
+          - !Ref asgScaleUpPolicy
+        Dimensions:
+          - Name: AutoScalingGroupName
+            Value: !Ref asgWebApp
+        ComparisonOperator: GreaterThanThreshold
+  CPUAlarmLow:
+     Type: AWS::CloudWatch::Alarm
+     Properties:
+        AlarmDescription: "Scale-up if CPU < 3% for 60 seconds"
+        MetricName: CPUUtilization
+        Namespace: AWS/EC2
+        Statistic: Average
+        Period: 60
+        EvaluationPeriods: 1
+        Threshold: 3
+        TreatMissingData: notBreaching
+        AlarmActions: 
+          - !Ref asgScaleDownPolicy
+        Dimensions:
+          - Name: AutoScalingGroupName
+            Value: !Ref asgWebApp
+        ComparisonOperator: LessThanThreshold
+
+
+  loadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      IpAddressType: ipv4
+      LoadBalancerAttributes:
+        - Key: idle_timeout.timeout_seconds
+          Value: '60'
+      Name: !Sub ${AWS::StackName}-load-balancer
+      Scheme: internet-facing
+      SecurityGroups:
+        - !Ref loadBalancerSecurityGroup
+      Subnets:
+        - !Ref PublicSubnetA
+        - !Ref PublicSubnetB
+        - !Ref PublicSubnetC
+      Tags:
+        - Key: Application
+          Value: WebApp
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-load-balancer
+      Type: application
+  loadBalancerTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 90
+      HealthCheckPath: '/healthz'
+      HealthCheckPort: '3333'
+      HealthCheckProtocol: 'HTTP'
+      HealthCheckTimeoutSeconds: 60
+      HealthyThresholdCount: 2
+      IpAddressType: ipv4
+      Name: !Sub ${AWS::StackName}-lb-tg
+      Port: 3333
+      Protocol: 'HTTP'
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-lb-tg
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: '20'
+      TargetType: instance
+      UnhealthyThresholdCount: 2
+      VpcId: !Ref myVPC
+  loadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref loadBalancerTargetGroup
+      LoadBalancerArn: !Ref loadBalancer
+      Port: 80
+      Protocol: HTTP
+
   myVPC:
     Type: AWS::EC2::VPC
     Properties:
@@ -213,20 +395,11 @@ Resources:
       - IpProtocol: tcp
         FromPort: 22
         ToPort: 22
-        CidrIp: 0.0.0.0/0
-      - IpProtocol: tcp
-        FromPort: 80
-        ToPort: 80
-        CidrIp: 0.0.0.0/0
-      - IpProtocol: tcp
-        FromPort: 443
-        ToPort: 443
-        CidrIp: 0.0.0.0/0
+        SourceSecurityGroupId: !Ref loadBalancerSecurityGroup
       - IpProtocol: tcp
         FromPort: 3333
         ToPort: 3333
-        CidrIp: 0.0.0.0/0
-
+        SourceSecurityGroupId: !Ref loadBalancerSecurityGroup
   databaseSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties: 
@@ -242,46 +415,25 @@ Resources:
         FromPort: 3306
         ToPort: 3306
         SourceSecurityGroupId: !Ref applicationSecurityGroup
-
-  myEC2:
-    Type: AWS::EC2::Instance
+  loadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
     Properties: 
-      BlockDeviceMappings: 
-      - DeviceName: "/dev/xvda"
-        Ebs: 
-          VolumeType: "gp2"
-          DeleteOnTermination: "true"
-          VolumeSize: "20"
-      SecurityGroupIds: [!Ref applicationSecurityGroup]
-      ImageId: !Ref AMIid
-      InstanceType: "t2.micro"
-      SubnetId: !Ref PublicSubnetA
-      IamInstanceProfile: !Ref InstanceProfile
-      UserData:
-        Fn::Base64:
-          !Sub |
-            #!/bin/bash
-            yum update -y
-
-            # create credentials
-            cd /home/ec2-user/
-            mkdir webConfig
-            cd webConfig
-            echo "${myBucket}" > bucket_name.txt
-            echo "${myRDSInstance.Endpoint.Address}" > mysql_host.txt
-            echo "${DbUserName}, ${DbUserPassword}" > mysql_key.txt
-
-            # set up database
-            cd ../webservice
-            python3 src/db_operation.py
-
-            # add webapp to systemd
-            cp /home/ec2-user/webservice/systemd/webapp.service /etc/systemd/system/webapp.service
-            chmod 644 /etc/systemd/system/webapp.service
-            yum install systemd -y
-            systemctl daemon-reload
-            systemctl enable webapp.service
-            systemctl start webapp.service
+      GroupDescription: "load balancer Security Group"
+      VpcId: !Ref myVPC
+      SecurityGroupEgress:
+      - IpProtocol: -1
+        FromPort: 0
+        ToPort: 0
+        CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: 0.0.0.0/0
 
   myBucket:
     Type: AWS::S3::Bucket
@@ -316,7 +468,9 @@ Resources:
                 !Sub "arn:aws:s3:::${myBucket}/*"
             ]
             Action:
-              - 's3:*'
+              - 's3:GetObject*'
+              - 's3:PutObject*'
+              - 's3:DeleteObject*'
       PolicyName: "WebAppS3"
       Roles: [!Ref EC2CSYE6225Role]
 
