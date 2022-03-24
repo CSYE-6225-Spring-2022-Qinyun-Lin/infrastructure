@@ -108,14 +108,14 @@ Resources:
         - us-east-1b
         - us-east-1c
       Cooldown: '60'
-      DesiredCapacity: '3'
+      DesiredCapacity: '1'
       HealthCheckGracePeriod: 90
       HealthCheckType: EC2
       LaunchTemplate:
         LaunchTemplateId: !Ref asgLaunchTemplate
         Version: !GetAtt asgLaunchTemplate.LatestVersionNumber
       MaxSize: '5'
-      MinSize: '3'
+      MinSize: '1'
       NewInstancesProtectedFromScaleIn: false
       Tags:
         - Key: Application
@@ -236,6 +236,18 @@ Resources:
       LoadBalancerArn: !Ref loadBalancer
       Port: 80
       Protocol: HTTP
+
+  myDNS:
+    Type: AWS::Route53::RecordSetGroup
+    Properties:
+      HostedZoneId: Z033869737D9XVC8CR2UB
+      Comment: Zone apex alias targeted to LoadBalancer.
+      RecordSets:
+      - Name: prod.linqinyun.me
+        Type: A
+        AliasTarget:
+          HostedZoneId: !GetAtt 'loadBalancer.CanonicalHostedZoneID'
+          DNSName: !GetAtt 'loadBalancer.DNSName'
 
   myVPC:
     Type: AWS::EC2::VPC
