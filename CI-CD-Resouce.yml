@@ -1,0 +1,211 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: A sample template for CSYE6225 CI/CD configuration
+
+Parameters:
+  CodeDeployBucketName:
+    Description: CodeDeploy Bucket name
+    Type: String
+    Default: csye6225-linqinyun-codedeploy-bucket
+  CodeDeployApplicationName:
+    Description: CodeDeploy application name
+    Type: String
+    Default: csye6225-webapp
+  CodeDeployGroupName:
+    Description: CodeDeploy group name
+    Type: String
+    Default: csye6225-webapp-deployment
+  AwsRegion:
+    Description: region
+    Type: String
+    Default: us-east-1
+  AwsAccountId:
+    Description: Account Id
+    Type: String
+    Default: 399550114864
+
+
+Resources:
+  codeDeployApplication:
+    Type: AWS::CodeDeploy::Application
+    Properties: 
+      ApplicationName: !Ref CodeDeployApplicationName
+      ComputePlatform: Server
+  
+  codeDeploymentGroup: 
+    Type: AWS::CodeDeploy::DeploymentGroup 
+    Properties:
+      ApplicationName: !Ref codeDeployApplication
+      DeploymentGroupName: !Ref CodeDeployGroupName
+      DeploymentConfigName: CodeDeployDefault.AllAtOnce
+      DeploymentStyle:
+        DeploymentOption: WITHOUT_TRAFFIC_CONTROL
+        DeploymentType: IN_PLACE
+      # Deployment:
+      #   Revision:
+      #     RevisionType: S3
+      #     S3Location:
+      #       Bucket: !Ref CodeDeployBucketName
+      #       BundleType: Zip
+      #       Key: webservice.zip
+      AutoRollbackConfiguration:
+        Enabled: true
+        Events:
+          - DEPLOYMENT_FAILURE
+      Ec2TagFilters:
+        -
+          Type: KEY_AND_VALUE
+          Key: Application
+          Value: WebApp
+      ServiceRoleArn: 
+        Fn::GetAtt: [CodeDeployServiceRole, Arn]
+
+  # Role for EC2 instance
+  CodeDeployEC2ServiceRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      RoleName: CodeDeployEC2ServiceRole
+  
+  # Policy for EC2ServiceRole
+  CodeDeployPolicy:
+    Type: AWS::IAM::Policy
+    Properties: 
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Resource: 
+              - !Sub "arn:aws:s3:::${CodeDeployBucketName}"
+              - !Sub "arn:aws:s3:::${CodeDeployBucketName}/*"
+            Action:
+              - 's3:GetObject*'
+              - 's3:DeleteObject*'
+              - 's3:PutObject*'
+              - 's3:List*'
+      PolicyName: "CodeDeploy-EC2-S3"
+      Roles:
+        - !Ref CodeDeployEC2ServiceRole
+
+  # Role for CodeDeploy
+  CodeDeployServiceRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+                - codedeploy.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSCodeDeployRole
+      RoleName: CodeDeployServiceRole
+  
+  # Policies for ghactions user
+  GHUploadPolicy:
+    Type: AWS::IAM::Policy
+    Properties: 
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Resource: 
+              - !Sub "arn:aws:s3:::${CodeDeployBucketName}"
+              - !Sub "arn:aws:s3:::${CodeDeployBucketName}/*"
+            Action:
+              - 's3:GetObject*'
+              - 's3:PutObject*'
+              - 's3:List*'
+      PolicyName: "GH-Upload-To-S3"
+      Users:
+        - ghactions
+  GHCodeDeployPolicy:
+    Type: AWS::IAM::Policy
+    Properties: 
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow 
+            Action: 
+              - "codedeploy:RegisterApplicationRevision"
+              - "codedeploy:GetApplicationRevision"
+            Resource:
+              - !Join [":", ["arn:aws:codedeploy", !Ref AwsRegion, !Ref AwsAccountId, "application", !Ref CodeDeployApplicationName]]
+          - Effect: Allow
+            Action: 
+              - "codedeploy:CreateDeployment"
+              - "codedeploy:GetDeployment"
+            Resource: 
+              - "*"
+          - Effect: Allow
+            Action: 
+              - "codedeploy:GetDeploymentConfig"
+            Resource:
+              - !Join [":", ["arn:aws:codedeploy", !Ref AwsRegion, !Ref AwsAccountId, "deploymentconfig:CodeDeployDefault.OneAtATime"]]
+              - !Join [":", ["arn:aws:codedeploy", !Ref AwsRegion, !Ref AwsAccountId, "deploymentconfig:CodeDeployDefault.HalfAtATime"]]
+              - !Join [":", ["arn:aws:codedeploy", !Ref AwsRegion, !Ref AwsAccountId, "deploymentconfig:CodeDeployDefault.AllAtOnce"]]
+      PolicyName: "GH-CodeDeploy"
+      Users:
+        - ghactions
+      Roles:
+        - !Ref CodeDeployEC2ServiceRole
+      
+  GHAMIPolicy:
+    Type: AWS::IAM::Policy
+    Properties: 
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow 
+            Action: [
+              "ec2:AttachVolume",
+              "ec2:AuthorizeSecurityGroupIngress",
+              "ec2:CopyImage",
+              "ec2:CreateImage",
+              "ec2:CreateKeypair",
+              "ec2:CreateSecurityGroup",
+              "ec2:CreateSnapshot",
+              "ec2:CreateTags",
+              "ec2:CreateVolume",
+              "ec2:DeleteKeyPair",
+              "ec2:DeleteSecurityGroup",
+              "ec2:DeleteSnapshot",
+              "ec2:DeleteVolume",
+              "ec2:DeregisterImage",
+              "ec2:DescribeImageAttribute",
+              "ec2:DescribeImages",
+              "ec2:DescribeInstances",
+              "ec2:DescribeInstanceStatus",
+              "ec2:DescribeRegions",
+              "ec2:DescribeSecurityGroups",
+              "ec2:DescribeSnapshots",
+              "ec2:DescribeSubnets",
+              "ec2:DescribeTags",
+              "ec2:DescribeVolumes",
+              "ec2:DetachVolume",
+              "ec2:GetPasswordData",
+              "ec2:ModifyImageAttribute",
+              "ec2:ModifyInstanceAttribute",
+              "ec2:ModifySnapshotAttribute",
+              "ec2:RegisterImage",
+              "ec2:RunInstances",
+              "ec2:StopInstances",
+              "ec2:TerminateInstances"
+            ]
+            Resource:
+              - "*"
+      PolicyName: "GH-EC2-AMI"
+      Users:
+        - ghactions
+
