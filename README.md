@@ -11,24 +11,29 @@ aws configure --profile=demo set region us-east-1
 ```
 
 ## command for creating stack
-Use default ciderblock
+Create CI-CD Stack
+```
+aws cloudformation create-stack --capabilities CAPABILITY_NAMED_IAM --profile=demo --template-body file://CI-CD-Resouce.yml --stack-name myCICD
+```
+
+Create VPC & Webservice Stack Using default ciderblock
 ```
 aws cloudformation create-stack --profile=dev --stack-name myVpc --template-body file://csye6225-infra.yml
 ```
 
-Use given AMI id
+Create VPC & Webservice Stack Using given AMI id
 ```
-aws cloudformation create-stack --profile=demo --capabilities CAPABILITY_NAMED_IAM --template-body file://csye6225-infra.yml --parameters ParameterKey=AMIid,ParameterValue="ami-0d7cf0836039917d3" ParameterKey=CurrentProfile,ParameterValue="demo" --stack-name myVpc
+aws cloudformation create-stack --profile=demo --capabilities CAPABILITY_NAMED_IAM --template-body file://csye6225-infra.yml --parameters ParameterKey=AMIid,ParameterValue="ami-0c4fa0eaf44d8b054" ParameterKey=CurrentProfile,ParameterValue="demo" --stack-name myVpc
 ```
 
-Use given ciderblock
+Create VPC & Webservice Stack Using given ciderblock
 ```
 aws cloudformation create-stack --profile=dev --stack-name myVpc --template-body file://csye6225-infra.yml --parameters ParameterKey=VpcCidrBlock,ParameterValue="10.0.0.0/16" ParameterKey=SubCidrBlockA,ParameterValue="10.0.0.0/24" ParameterKey=SubCidrBlockB,ParameterValue="10.0.1.0/24" ParameterKey=SubCidrBlockC,ParameterValue="10.0.2.0/24" 
 ```
 
 ## command for deleting stack
 ```
-aws cloudformation delete-stack --profile=dev  --stack-name myVpc
+aws cloudformation delete-stack --profile=demo  --stack-name myVpc
 ```
 
 delete bucket before deleting stack

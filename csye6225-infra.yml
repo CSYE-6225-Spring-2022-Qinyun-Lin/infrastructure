@@ -183,7 +183,6 @@ Resources:
             Value: !Ref asgWebApp
         ComparisonOperator: LessThanThreshold
 
-
   loadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
@@ -360,7 +359,6 @@ Resources:
       - Key: Name
         Value: !Ref AWS::StackName
 
-
   PublicSubnetRouteTableAssociationA:
     Type: 'AWS::EC2::SubnetRouteTableAssociation'
     Properties:
@@ -484,21 +482,8 @@ Resources:
               - 's3:PutObject*'
               - 's3:DeleteObject*'
       PolicyName: "WebAppS3"
-      Roles: [!Ref EC2CSYE6225Role]
-
-  EC2CSYE6225Role:
-    Type: AWS::IAM::Role
-    Properties: 
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - ec2.amazonaws.com
-            Action:
-              - 'sts:AssumeRole'
-      RoleName: "EC2-CSYE6225-1"
+      Roles: 
+        - CodeDeployEC2ServiceRole
 
   InstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -506,7 +491,7 @@ Resources:
       InstanceProfileName: ec2-instance-profile
       Path: /
       Roles: 
-       - !Ref EC2CSYE6225Role
+       - CodeDeployEC2ServiceRole
 
   myRDSInstance:
     Type: AWS::RDS::DBInstance
