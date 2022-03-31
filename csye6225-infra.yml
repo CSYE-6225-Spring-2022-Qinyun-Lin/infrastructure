@@ -49,6 +49,18 @@ Parameters:
   DbUserPassword:
     Type: String
     Default: "adminadmin!"
+  CodeDeployBucketName:
+    Description: CodeDeploy Bucket name
+    Type: String
+    Default: csye6225-linqinyun-codedeploy-bucket
+  CodeDeployApplicationName:
+    Description: CodeDeploy application name
+    Type: String
+    Default: csye6225-webapp
+  CodeDeployGroupName:
+    Description: CodeDeploy group name
+    Type: String
+    Default: csye6225-webapp-deployment
 
 
 Conditions:
@@ -98,6 +110,8 @@ Resources:
               systemctl daemon-reload
               systemctl enable webapp.service
               systemctl start webapp.service
+
+              aws deploy create-deployment --application-name ${CodeDeployApplicationName} --region us-east-1 --deployment-group-name ${CodeDeployGroupName} --s3-location bucket=${CodeDeployBucketName},key=webservice.zip,bundleType=zip
 
   asgWebApp:
     Type: AWS::AutoScaling::AutoScalingGroup

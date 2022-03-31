@@ -2,10 +2,18 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: A sample template for CSYE6225 CI/CD configuration
 
 Parameters:
-  BucketName:
+  CodeDeployBucketName:
     Description: CodeDeploy Bucket name
     Type: String
     Default: csye6225-linqinyun-codedeploy-bucket
+  CodeDeployApplicationName:
+    Description: CodeDeploy application name
+    Type: String
+    Default: csye6225-webapp
+  CodeDeployGroupName:
+    Description: CodeDeploy group name
+    Type: String
+    Default: csye6225-webapp-deployment
   AwsRegion:
     Description: region
     Type: String
@@ -20,14 +28,14 @@ Resources:
   codeDeployApplication:
     Type: AWS::CodeDeploy::Application
     Properties: 
-      ApplicationName: csye6225-webapp
+      ApplicationName: !Ref CodeDeployApplicationName
       ComputePlatform: Server
   
   codeDeploymentGroup: 
     Type: AWS::CodeDeploy::DeploymentGroup 
     Properties:
       ApplicationName: !Ref codeDeployApplication
-      DeploymentGroupName: csye6225-webapp-deployment
+      DeploymentGroupName: !Ref CodeDeployGroupName
       DeploymentConfigName: CodeDeployDefault.AllAtOnce
       DeploymentStyle:
         DeploymentOption: WITHOUT_TRAFFIC_CONTROL
@@ -36,9 +44,9 @@ Resources:
       #   Revision:
       #     RevisionType: S3
       #     S3Location:
-      #       Bucket: !Ref BucketName
-      #       BundleType: Zip
-      #       Key: webservice.zip
+      #       Bucket: !Ref CodeDeployBucketName
+      #       BundleType: Zip
+      #       Key: webservice.zip
       AutoRollbackConfiguration:
         Enabled: true
         Events:
@@ -49,7 +57,7 @@ Resources:
           Key: Application
           Value: WebApp
       ServiceRoleArn: 
-        Fn::GetAtt: [ CodeDeployServiceRole, Arn ]
+        Fn::GetAtt: [CodeDeployServiceRole, Arn]
 
   # Role for EC2 instance
   CodeDeployEC2ServiceRole:
@@ -75,8 +83,8 @@ Resources:
         Statement:
           - Effect: Allow
             Resource: 
-              - !Sub "arn:aws:s3:::${BucketName}"
-              - !Sub "arn:aws:s3:::${BucketName}/*"
+              - !Sub "arn:aws:s3:::${CodeDeployBucketName}"
+              - !Sub "arn:aws:s3:::${CodeDeployBucketName}/*"
             Action:
               - 's3:GetObject*'
               - 's3:DeleteObject*'
@@ -113,8 +121,8 @@ Resources:
         Statement:
           - Effect: Allow
             Resource: 
-              - !Sub "arn:aws:s3:::${BucketName}"
-              - !Sub "arn:aws:s3:::${BucketName}/*"
+              - !Sub "arn:aws:s3:::${CodeDeployBucketName}"
+              - !Sub "arn:aws:s3:::${CodeDeployBucketName}/*"
             Action:
               - 's3:GetObject*'
               - 's3:PutObject*'
@@ -133,7 +141,7 @@ Resources:
               - "codedeploy:RegisterApplicationRevision"
               - "codedeploy:GetApplicationRevision"
             Resource:
-              - !Join [":", ["arn:aws:codedeploy", !Ref AwsRegion, !Ref AwsAccountId, "application", !Ref codeDeployApplication]]
+              - !Join [":", ["arn:aws:codedeploy", !Ref AwsRegion, !Ref AwsAccountId, "application", !Ref CodeDeployApplicationName]]
           - Effect: Allow
             Action: 
               - "codedeploy:CreateDeployment"
@@ -150,6 +158,9 @@ Resources:
       PolicyName: "GH-CodeDeploy"
       Users:
         - ghactions
+      Roles:
+        - !Ref CodeDeployEC2ServiceRole
+      
   GHAMIPolicy:
     Type: AWS::IAM::Policy
     Properties: 
