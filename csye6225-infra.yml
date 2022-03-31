@@ -68,6 +68,55 @@ Conditions:
 
 
 Resources:
+  codeDeploymentGroup: 
+    Type: AWS::CodeDeploy::DeploymentGroup 
+    Properties:
+      ApplicationName: !Ref CodeDeployApplicationName
+      DeploymentGroupName: !Ref CodeDeployGroupName
+      DeploymentConfigName: CodeDeployDefault.AllAtOnce
+      DeploymentStyle:
+        DeploymentOption: WITHOUT_TRAFFIC_CONTROL
+        DeploymentType: IN_PLACE
+      AutoScalingGroups:
+        - !Ref asgWebApp
+      Deployment:
+        IgnoreApplicationStopFailures: true
+        Revision:
+          RevisionType: S3
+          S3Location:
+            Bucket: !Ref CodeDeployBucketName
+            BundleType: Zip
+            Key: webservice.zip
+      # AutoRollbackConfiguration:
+      #   Enabled: true
+      #   Events:
+      #     - DEPLOYMENT_FAILURE
+      Ec2TagFilters:
+        -
+          Type: KEY_AND_VALUE
+          Key: Application
+          Value: WebApp
+      ServiceRoleArn: 
+        Fn::GetAtt: [CodeDeployServiceRole, Arn]
+
+  # Role for CodeDeploy Group
+  CodeDeployServiceRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+                - codedeploy.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSCodeDeployRole
+      RoleName: CodeDeployServiceRole
+
   asgLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Properties:
@@ -111,7 +160,7 @@ Resources:
               systemctl enable webapp.service
               systemctl start webapp.service
 
-              aws deploy create-deployment --application-name ${CodeDeployApplicationName} --region us-east-1 --deployment-group-name ${CodeDeployGroupName} --s3-location bucket=${CodeDeployBucketName},key=webservice.zip,bundleType=zip
+              # aws deploy create-deployment --application-name ${CodeDeployApplicationName} --region us-east-1 --deployment-group-name ${CodeDeployGroupName} --s3-location bucket=${CodeDeployBucketName},key=webservice.zip,bundleType=zip
 
   asgWebApp:
     Type: AWS::AutoScaling::AutoScalingGroup
