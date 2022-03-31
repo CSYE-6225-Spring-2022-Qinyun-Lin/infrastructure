@@ -30,34 +30,6 @@ Resources:
     Properties: 
       ApplicationName: !Ref CodeDeployApplicationName
       ComputePlatform: Server
-  
-  codeDeploymentGroup: 
-    Type: AWS::CodeDeploy::DeploymentGroup 
-    Properties:
-      ApplicationName: !Ref codeDeployApplication
-      DeploymentGroupName: !Ref CodeDeployGroupName
-      DeploymentConfigName: CodeDeployDefault.AllAtOnce
-      DeploymentStyle:
-        DeploymentOption: WITHOUT_TRAFFIC_CONTROL
-        DeploymentType: IN_PLACE
-      # Deployment:
-      #   Revision:
-      #     RevisionType: S3
-      #     S3Location:
-      #       Bucket: !Ref CodeDeployBucketName
-      #       BundleType: Zip
-      #       Key: webservice.zip
-      AutoRollbackConfiguration:
-        Enabled: true
-        Events:
-          - DEPLOYMENT_FAILURE
-      Ec2TagFilters:
-        -
-          Type: KEY_AND_VALUE
-          Key: Application
-          Value: WebApp
-      ServiceRoleArn: 
-        Fn::GetAtt: [CodeDeployServiceRole, Arn]
 
   # Role for EC2 instance
   CodeDeployEC2ServiceRole:
@@ -93,24 +65,6 @@ Resources:
       PolicyName: "CodeDeploy-EC2-S3"
       Roles:
         - !Ref CodeDeployEC2ServiceRole
-
-  # Role for CodeDeploy
-  CodeDeployServiceRole:
-    Type: AWS::IAM::Role
-    Properties: 
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - ec2.amazonaws.com
-                - codedeploy.amazonaws.com
-            Action:
-              - 'sts:AssumeRole'
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSCodeDeployRole
-      RoleName: CodeDeployServiceRole
   
   # Policies for ghactions user
   GHUploadPolicy:
@@ -158,9 +112,8 @@ Resources:
       PolicyName: "GH-CodeDeploy"
       Users:
         - ghactions
-      Roles:
-        - !Ref CodeDeployEC2ServiceRole
-      
+      # Roles:
+      #   - !Ref CodeDeployEC2ServiceRole     
   GHAMIPolicy:
     Type: AWS::IAM::Policy
     Properties: 
