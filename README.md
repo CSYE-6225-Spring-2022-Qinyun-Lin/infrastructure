@@ -23,7 +23,7 @@ aws cloudformation create-stack --profile=dev --stack-name myVpc --template-body
 
 Create VPC & Webservice Stack Using given AMI id
 ```
-aws cloudformation create-stack --profile=demo --capabilities CAPABILITY_NAMED_IAM --template-body file://csye6225-infra.yml --parameters ParameterKey=AMIid,ParameterValue="ami-03f31e0a9b79d45fa" ParameterKey=CurrentProfile,ParameterValue="demo" --stack-name myVpc
+aws cloudformation create-stack --profile=demo --capabilities CAPABILITY_NAMED_IAM --template-body file://csye6225-infra.yml --parameters ParameterKey=AMIid,ParameterValue="ami-0e71161b396e474d4" ParameterKey=CurrentProfile,ParameterValue="demo" --stack-name myVpc
 ```
 
 Create VPC & Webservice Stack Using given ciderblock
