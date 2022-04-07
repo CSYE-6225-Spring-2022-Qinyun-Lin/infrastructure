@@ -44,6 +44,8 @@ Resources:
                 - ec2.amazonaws.com
             Action:
               - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
       RoleName: CodeDeployEC2ServiceRole
   
   # Policy for EC2ServiceRole
