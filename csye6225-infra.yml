@@ -160,6 +160,10 @@ Resources:
               systemctl enable webapp.service
               systemctl start webapp.service
 
+              # set up CloudWatch
+              cp /home/ec2-user/webservice/cloudwatch_config/cloudwatch-config.json /opt/cloudwatch-config.json
+              sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/cloudwatch-config.json -s
+
               # aws deploy create-deployment --application-name ${CodeDeployApplicationName} --region us-east-1 --deployment-group-name ${CodeDeployGroupName} --s3-location bucket=${CodeDeployBucketName},key=webservice.zip,bundleType=zip
 
   asgWebApp:
