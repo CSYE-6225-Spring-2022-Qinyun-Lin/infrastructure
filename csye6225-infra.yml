@@ -68,6 +68,206 @@ Conditions:
 
 
 Resources:
+  #================================ VPC resources ================================
+  myVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidrBlock
+      EnableDnsSupport: 'true'
+      EnableDnsHostnames: 'true'
+      Tags:
+       - Key: Name
+         Value: !Ref AWS::StackName
+
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties: 
+      VpcId:
+        Ref: myVPC
+      AvailabilityZone: "us-east-1a"
+      CidrBlock: !Ref SubCidrBlockA
+      MapPublicIpOnLaunch: true
+      Tags: 
+      - Key: Name
+        Value: !Sub PublicSubA-${AWS::StackName}
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties: 
+      VpcId:
+        Ref: myVPC
+      AvailabilityZone: "us-east-1b"
+      CidrBlock: !Ref SubCidrBlockB
+      MapPublicIpOnLaunch: true
+      Tags: 
+      - Key: Name
+        Value: !Sub PublicSubB-${AWS::StackName}
+  PublicSubnetC:
+    Type: AWS::EC2::Subnet
+    Properties: 
+      VpcId: !Ref myVPC
+      AvailabilityZone: "us-east-1c"
+      CidrBlock: !Ref SubCidrBlockC
+      MapPublicIpOnLaunch: true
+      Tags: 
+      - Key: Name
+        Value: !Sub PublicSubC-${AWS::StackName}
+  
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties: 
+      VpcId:
+        Ref: myVPC
+      AvailabilityZone: "us-east-1a"
+      CidrBlock: !Ref PrivateSubCidrBlockA
+      MapPublicIpOnLaunch: false
+      Tags: 
+      - Key: Name
+        Value: !Sub PrivateSubA-${AWS::StackName}
+  PrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties: 
+      VpcId:
+        Ref: myVPC
+      AvailabilityZone: "us-east-1b"
+      CidrBlock: !Ref PrivateSubCidrBlockB
+      MapPublicIpOnLaunch: false
+      Tags: 
+      - Key: Name
+        Value: !Sub PrivateSubB-${AWS::StackName}
+  PrivateSubnetC:
+    Type: AWS::EC2::Subnet
+    Properties: 
+      VpcId: !Ref myVPC
+      AvailabilityZone: "us-east-1c"
+      CidrBlock: !Ref PrivateSubCidrBlockC
+      MapPublicIpOnLaunch: false
+      Tags: 
+      - Key: Name
+        Value: !Sub PrivateSubC-${AWS::StackName}
+
+  InternetGateway:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties:
+      Tags:
+      - Key: Name
+        Value: !Ref AWS::StackName
+  AttachGateway:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !Ref myVPC
+      InternetGatewayId: !Ref InternetGateway
+  
+  PublicRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref myVPC
+      Tags:
+      - Key: Name
+        Value: !Ref AWS::StackName
+  PublicRoute:
+    Type: 'AWS::EC2::Route'
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: !Ref DestinationCIDRblock
+      GatewayId: !Ref InternetGateway
+  
+  PrivateRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref myVPC
+      Tags:
+      - Key: Name
+        Value: !Ref AWS::StackName
+
+  PublicSubnetRouteTableAssociationA:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRouteTable
+  PublicSubnetRouteTableAssociationB:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PublicSubnetB
+      RouteTableId: !Ref PublicRouteTable
+  PublicSubnetRouteTableAssociationC:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PublicSubnetC
+      RouteTableId: !Ref PublicRouteTable
+
+  PrivateSubnetRouteTableAssociationA:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PrivateSubnetA
+      RouteTableId: !Ref PrivateRouteTable
+  PrivateSubnetRouteTableAssociationB:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PrivateSubnetB
+      RouteTableId: !Ref PrivateRouteTable
+  PrivateSubnetRouteTableAssociationC:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PrivateSubnetC
+      RouteTableId: !Ref PrivateRouteTable
+
+  applicationSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties: 
+      GroupDescription: "application Security Group"
+      VpcId: !Ref myVPC
+      SecurityGroupEgress:
+      - IpProtocol: -1
+        FromPort: 0
+        ToPort: 0
+        CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        SourceSecurityGroupId: !Ref loadBalancerSecurityGroup
+      - IpProtocol: tcp
+        FromPort: 3333
+        ToPort: 3333
+        SourceSecurityGroupId: !Ref loadBalancerSecurityGroup
+  databaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties: 
+      GroupDescription: "database Security Group"
+      VpcId: !Ref myVPC
+      SecurityGroupEgress:
+      - IpProtocol: -1
+        FromPort: 0
+        ToPort: 0
+        CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 3306
+        ToPort: 3306
+        SourceSecurityGroupId: !Ref applicationSecurityGroup
+  loadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties: 
+      GroupDescription: "load balancer Security Group"
+      VpcId: !Ref myVPC
+      SecurityGroupEgress:
+      - IpProtocol: -1
+        FromPort: 0
+        ToPort: 0
+        CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: 0.0.0.0/0
+
+
+  #================================ Code Deploy resources ================================
   codeDeploymentGroup: 
     Type: AWS::CodeDeploy::DeploymentGroup 
     Properties:
@@ -98,8 +298,6 @@ Resources:
           Value: WebApp
       ServiceRoleArn: 
         Fn::GetAtt: [CodeDeployServiceRole, Arn]
-
-  # Role for CodeDeploy Group
   CodeDeployServiceRole:
     Type: AWS::IAM::Role
     Properties: 
@@ -117,6 +315,8 @@ Resources:
         - arn:aws:iam::aws:policy/service-role/AWSCodeDeployRole
       RoleName: CodeDeployServiceRole
 
+
+  #================================ Auto Scaling resources ================================
   asgLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Properties:
@@ -270,6 +470,8 @@ Resources:
           Value: WebApp
         - Key: Name
           Value: !Sub ${AWS::StackName}-load-balancer
+        - Key: InternetGatewayId
+          Value: !Ref InternetGateway
       Type: application
   loadBalancerTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -303,6 +505,8 @@ Resources:
       Port: 80
       Protocol: HTTP
 
+
+  #================================ DNS and Bucket resources ================================
   myDNS:
     Type: AWS::Route53::RecordSetGroup
     Properties:
@@ -314,203 +518,6 @@ Resources:
         AliasTarget:
           HostedZoneId: !GetAtt 'loadBalancer.CanonicalHostedZoneID'
           DNSName: !GetAtt 'loadBalancer.DNSName'
-
-  myVPC:
-    Type: AWS::EC2::VPC
-    Properties:
-      CidrBlock: !Ref VpcCidrBlock
-      EnableDnsSupport: 'true'
-      EnableDnsHostnames: 'true'
-      Tags:
-       - Key: Name
-         Value: !Ref AWS::StackName
-
-  PublicSubnetA:
-    Type: AWS::EC2::Subnet
-    Properties: 
-      VpcId:
-        Ref: myVPC
-      AvailabilityZone: "us-east-1a"
-      CidrBlock: !Ref SubCidrBlockA
-      MapPublicIpOnLaunch: true
-      Tags: 
-      - Key: Name
-        Value: !Sub PublicSubA-${AWS::StackName}
-  PublicSubnetB:
-    Type: AWS::EC2::Subnet
-    Properties: 
-      VpcId:
-        Ref: myVPC
-      AvailabilityZone: "us-east-1b"
-      CidrBlock: !Ref SubCidrBlockB
-      MapPublicIpOnLaunch: true
-      Tags: 
-      - Key: Name
-        Value: !Sub PublicSubB-${AWS::StackName}
-  PublicSubnetC:
-    Type: AWS::EC2::Subnet
-    Properties: 
-      VpcId: !Ref myVPC
-      AvailabilityZone: "us-east-1c"
-      CidrBlock: !Ref SubCidrBlockC
-      MapPublicIpOnLaunch: true
-      Tags: 
-      - Key: Name
-        Value: !Sub PublicSubC-${AWS::StackName}
-  
-  PrivateSubnetA:
-    Type: AWS::EC2::Subnet
-    Properties: 
-      VpcId:
-        Ref: myVPC
-      AvailabilityZone: "us-east-1a"
-      CidrBlock: !Ref PrivateSubCidrBlockA
-      MapPublicIpOnLaunch: false
-      Tags: 
-      - Key: Name
-        Value: !Sub PrivateSubA-${AWS::StackName}
-  PrivateSubnetB:
-    Type: AWS::EC2::Subnet
-    Properties: 
-      VpcId:
-        Ref: myVPC
-      AvailabilityZone: "us-east-1b"
-      CidrBlock: !Ref PrivateSubCidrBlockB
-      MapPublicIpOnLaunch: false
-      Tags: 
-      - Key: Name
-        Value: !Sub PrivateSubB-${AWS::StackName}
-  PrivateSubnetC:
-    Type: AWS::EC2::Subnet
-    Properties: 
-      VpcId: !Ref myVPC
-      AvailabilityZone: "us-east-1c"
-      CidrBlock: !Ref PrivateSubCidrBlockC
-      MapPublicIpOnLaunch: false
-      Tags: 
-      - Key: Name
-        Value: !Sub PrivateSubC-${AWS::StackName}
-
-  InternetGateway:
-    Type: 'AWS::EC2::InternetGateway'
-    Properties:
-      Tags:
-      - Key: Name
-        Value: !Ref AWS::StackName
-  AttachGateway:
-    Type: 'AWS::EC2::VPCGatewayAttachment'
-    Properties:
-      VpcId: !Ref myVPC
-      InternetGatewayId: !Ref InternetGateway
-  
-  PublicRouteTable:
-    Type: 'AWS::EC2::RouteTable'
-    Properties:
-      VpcId: !Ref myVPC
-      Tags:
-      - Key: Name
-        Value: !Ref AWS::StackName
-  PublicRoute:
-    Type: 'AWS::EC2::Route'
-    DependsOn: AttachGateway
-    Properties:
-      RouteTableId: !Ref PublicRouteTable
-      DestinationCidrBlock: !Ref DestinationCIDRblock
-      GatewayId: !Ref InternetGateway
-  
-  PrivateRouteTable:
-    Type: 'AWS::EC2::RouteTable'
-    Properties:
-      VpcId: !Ref myVPC
-      Tags:
-      - Key: Name
-        Value: !Ref AWS::StackName
-
-  PublicSubnetRouteTableAssociationA:
-    Type: 'AWS::EC2::SubnetRouteTableAssociation'
-    Properties:
-      SubnetId: !Ref PublicSubnetA
-      RouteTableId: !Ref PublicRouteTable
-  PublicSubnetRouteTableAssociationB:
-    Type: 'AWS::EC2::SubnetRouteTableAssociation'
-    Properties:
-      SubnetId: !Ref PublicSubnetB
-      RouteTableId: !Ref PublicRouteTable
-  PublicSubnetRouteTableAssociationC:
-    Type: 'AWS::EC2::SubnetRouteTableAssociation'
-    Properties:
-      SubnetId: !Ref PublicSubnetC
-      RouteTableId: !Ref PublicRouteTable
-
-  PrivateSubnetRouteTableAssociationA:
-    Type: 'AWS::EC2::SubnetRouteTableAssociation'
-    Properties:
-      SubnetId: !Ref PrivateSubnetA
-      RouteTableId: !Ref PrivateRouteTable
-  PrivateSubnetRouteTableAssociationB:
-    Type: 'AWS::EC2::SubnetRouteTableAssociation'
-    Properties:
-      SubnetId: !Ref PrivateSubnetB
-      RouteTableId: !Ref PrivateRouteTable
-  PrivateSubnetRouteTableAssociationAC:
-    Type: 'AWS::EC2::SubnetRouteTableAssociation'
-    Properties:
-      SubnetId: !Ref PrivateSubnetC
-      RouteTableId: !Ref PrivateRouteTable
-
-  applicationSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties: 
-      GroupDescription: "application Security Group"
-      VpcId: !Ref myVPC
-      SecurityGroupEgress:
-      - IpProtocol: -1
-        FromPort: 0
-        ToPort: 0
-        CidrIp: 0.0.0.0/0
-      SecurityGroupIngress:
-      - IpProtocol: tcp
-        FromPort: 22
-        ToPort: 22
-        SourceSecurityGroupId: !Ref loadBalancerSecurityGroup
-      - IpProtocol: tcp
-        FromPort: 3333
-        ToPort: 3333
-        SourceSecurityGroupId: !Ref loadBalancerSecurityGroup
-  databaseSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties: 
-      GroupDescription: "database Security Group"
-      VpcId: !Ref myVPC
-      SecurityGroupEgress:
-      - IpProtocol: -1
-        FromPort: 0
-        ToPort: 0
-        CidrIp: 0.0.0.0/0
-      SecurityGroupIngress:
-      - IpProtocol: tcp
-        FromPort: 3306
-        ToPort: 3306
-        SourceSecurityGroupId: !Ref applicationSecurityGroup
-  loadBalancerSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties: 
-      GroupDescription: "load balancer Security Group"
-      VpcId: !Ref myVPC
-      SecurityGroupEgress:
-      - IpProtocol: -1
-        FromPort: 0
-        ToPort: 0
-        CidrIp: 0.0.0.0/0
-      SecurityGroupIngress:
-      - IpProtocol: tcp
-        FromPort: 80
-        ToPort: 80
-        CidrIp: 0.0.0.0/0
-      - IpProtocol: tcp
-        FromPort: 443
-        ToPort: 443
-        CidrIp: 0.0.0.0/0
 
   myBucket:
     Type: AWS::S3::Bucket
@@ -551,7 +558,27 @@ Resources:
       PolicyName: "WebAppS3"
       Roles: 
         - CodeDeployEC2ServiceRole
+  
+  webAppServerlessLambdaPolicy:
+    Type: AWS::IAM::Policy
+    Properties: 
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Resource: "*"
+            Action:
+              - 'sns:List*'
+              - 'sns:Get*'
+              - 'sns:Pub*'
+              - "dynamodb:Get*"
+              - "dynamodb:Put*"
+      PolicyName: "WebAppServerless"
+      Roles: 
+        - CodeDeployEC2ServiceRole
 
+
+  #================================ DataBase resources ================================
   InstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties: 
@@ -565,8 +592,8 @@ Resources:
     Properties: 
       DBName: "csye6225"
       Engine: "mysql"
-      EngineVersion: "5.7.36"
-      DBInstanceClass: "db.t3.micro"
+      EngineVersion: "5.7.37"
+      DBInstanceClass: "db.t2.micro"
       AllocatedStorage: "5"
       DBInstanceIdentifier: "csye6225"
       MasterUsername: !Ref DbUserName
@@ -594,3 +621,94 @@ Resources:
         sql_mode: IGNORE_SPACE
         max_allowed_packet: 1024
 
+  myDynamoDB:
+    Type: AWS::DynamoDB::Table
+    Properties: 
+      AttributeDefinitions: 
+        - 
+          AttributeName: "UserId"
+          AttributeType: "S"
+        # - 
+        #   AttributeName: "Token"
+        #   AttributeType: "S"
+        # - 
+        #   AttributeName: "ExpireTime"
+        #   AttributeType: "N"
+      KeySchema: 
+        - 
+          AttributeName: "UserId"
+          KeyType: "HASH"
+      BillingMode: PAY_PER_REQUEST
+      TableName: csye6225-token
+      TimeToLiveSpecification: 
+        AttributeName: "ExpireTime"
+        Enabled: true
+
+
+  #================================ Serverless resources ================================
+  LambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: MyEmailSenderFunction
+      Handler: lambda_function.lambda_handler
+      Role: 
+        Fn::GetAtt: [LambdaExecutionRole, Arn]
+      Code:
+        S3Bucket: !Ref CodeDeployBucketName
+        S3Key: lambda_handler.zip
+      PackageType: Zip
+      Runtime: python3.6
+      Timeout: 10
+      TracingConfig:
+        Mode: Active
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                # - ec2.amazonaws.com
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaDynamoDBExecutionRole
+      RoleName: LambdaExecutionRole
+  LambdaExecutionPloicy:
+    Type: AWS::IAM::Policy
+    Properties: 
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Action:
+              - "ses:SendEmail"
+              - "ses:SendRawEmail"
+              - "logs:CreateLogGroup"
+              - "logs:CreateLogStream"
+              - "logs:PutLogEvents"
+              - "dynamodb:Get*"
+              - "dynamodb:Put*"
+            Resource: "*"
+      PolicyName: "Lambda-Execution-Ploicy"
+      Roles:
+        - !Ref LambdaExecutionRole
+  LambdaInvokePermission: 
+    Type: AWS::Lambda::Permission
+    Properties: 
+      Action: lambda:InvokeFunction
+      Principal: sns.amazonaws.com
+      SourceArn:  !Ref SNSTopic 
+      FunctionName: !Ref LambdaFunction
+
+  SNSTopic: 
+    Type: AWS::SNS::Topic
+    Properties: 
+      DisplayName: sns-topic-for-lambda
+      TopicName: sns-topic-for-lambda
+      Subscription:  
+      - Endpoint: !GetAtt LambdaFunction.Arn
+        Protocol: lambda
