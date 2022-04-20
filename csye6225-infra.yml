@@ -212,6 +212,8 @@ Resources:
       SubnetId: !Ref PrivateSubnetC
       RouteTableId: !Ref PrivateRouteTable
 
+
+  #================================ Security resources ================================
   applicationSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties: 
@@ -257,10 +259,10 @@ Resources:
         ToPort: 0
         CidrIp: 0.0.0.0/0
       SecurityGroupIngress:
-      - IpProtocol: tcp
-        FromPort: 80
-        ToPort: 80
-        CidrIp: 0.0.0.0/0
+      # - IpProtocol: tcp
+      #   FromPort: 80
+      #   ToPort: 80
+      #   CidrIp: 0.0.0.0/0
       - IpProtocol: tcp
         FromPort: 443
         ToPort: 443
@@ -298,7 +300,54 @@ Resources:
           Value: WebApp
       ServiceRoleArn: 
         Fn::GetAtt: [CodeDeployServiceRole, Arn]
+
+
+  #================================ IAM resources ================================
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties: 
+      InstanceProfileName: ec2-instance-profile
+      Path: /
+      Roles: 
+       - EC2ServiceRole
+
+  webAppS3Policy:
+    Type: AWS::IAM::Policy
+    Properties: 
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Resource: [
+                !Sub "arn:aws:s3:::${myBucket}",
+                !Sub "arn:aws:s3:::${myBucket}/*"
+            ]
+            Action:
+              - 's3:GetObject*'
+              - 's3:PutObject*'
+              - 's3:DeleteObject*'
+      PolicyName: "WebAppS3"
+      Roles: 
+        - EC2ServiceRole  
+  webAppServerlessLambdaPolicy:
+    Type: AWS::IAM::Policy
+    Properties: 
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Resource: "*"
+            Action:
+              - 'sns:List*'
+              - 'sns:Get*'
+              - 'sns:Pub*'
+              - "dynamodb:Get*"
+              - "dynamodb:Put*"
+      PolicyName: "WebAppServerless"
+      Roles: 
+        - EC2ServiceRole
   CodeDeployServiceRole:
+    # used for CodeDeployMent Group
     Type: AWS::IAM::Role
     Properties: 
       AssumeRolePolicyDocument:
@@ -320,13 +369,16 @@ Resources:
   asgLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Properties:
-      LaunchTemplateName: !Sub '${AWS::StackName}-launch-config'
+      LaunchTemplateName: !Sub '${AWS::StackName}-launch-template'
       LaunchTemplateData:
         BlockDeviceMappings:
         - DeviceName: /dev/xvda
           Ebs:
             VolumeSize: 20
             VolumeType: "gp2"
+            Encrypted: true
+            KmsKeyId: 
+              Fn::GetAtt: [EbsVolumeKey, Arn]
             DeleteOnTermination: true
         ImageId: !Ref AMIid
         InstanceType: t2.micro
@@ -350,6 +402,7 @@ Resources:
 
               # set up database
               cd ../webservice
+              wget https://truststore.pki.rds.amazonaws.com/us-east-1/us-east-1-bundle.pem
               python3 src/db_operation.py
 
               # add webapp to systemd
@@ -365,6 +418,57 @@ Resources:
               sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/cloudwatch-config.json -s
 
               # aws deploy create-deployment --application-name ${CodeDeployApplicationName} --region us-east-1 --deployment-group-name ${CodeDeployGroupName} --s3-location bucket=${CodeDeployBucketName},key=webservice.zip,bundleType=zip
+
+  EbsVolumeKey:
+    Type: 'AWS::KMS::Key'
+    Properties:
+      Description: A symmetric KMS key for Ebs Volume
+      EnableKeyRotation: true
+      PendingWindowInDays: 7
+      KeyPolicy:
+        Version: "2012-10-17"
+        Id: key-default-1
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: 'kms:*'
+            Resource: '*'
+          - Sid: Allow administration of the key
+            Effect: Allow
+            Principal:
+              AWS: 
+                - !Sub "arn:aws:iam::${AWS::AccountId}:role/EC2ServiceRole"
+                - !Sub "arn:aws:iam::${AWS::AccountId}:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling"
+            Action:
+              - 'kms:Create*'
+              - 'kms:Describe*'
+              - 'kms:Enable*'
+              - 'kms:List*'
+              - 'kms:Put*'
+              - 'kms:Update*'
+              - 'kms:Revoke*'
+              - 'kms:Disable*'
+              - 'kms:Get*'
+              - 'kms:Delete*'
+              - 'kms:ScheduleKeyDeletion'
+              - 'kms:CancelKeyDeletion'
+            Resource: '*'
+          - Sid: Allow use of the key
+            Effect: Allow
+            Principal:
+              AWS: 
+                - !Sub "arn:aws:iam::${AWS::AccountId}:role/EC2ServiceRole"
+                - !Sub "arn:aws:iam::${AWS::AccountId}:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling"
+            Action:
+              - 'kms:DescribeKey'
+              - 'kms:Encrypt'
+              - 'kms:Decrypt'
+              - 'kms:ReEncrypt*'
+              - 'kms:GenerateDataKey'
+              - 'kms:GenerateDataKeyWithoutPlaintext'
+            Resource: '*'
 
   asgWebApp:
     Type: AWS::AutoScaling::AutoScalingGroup
@@ -397,7 +501,6 @@ Resources:
         - !Ref PublicSubnetA
         - !Ref PublicSubnetB
         - !Ref PublicSubnetC
-
   asgScaleUpPolicy:
     Type: AWS::AutoScaling::ScalingPolicy
     Properties:
@@ -502,8 +605,10 @@ Resources:
         - Type: forward
           TargetGroupArn: !Ref loadBalancerTargetGroup
       LoadBalancerArn: !Ref loadBalancer
-      Port: 80
-      Protocol: HTTP
+      Certificates:
+        - CertificateArn: arn:aws:acm:us-east-1:399550114864:certificate/cb969e44-a814-4a7d-97ae-fb92a534054d
+      Port: 443
+      Protocol: HTTPS
 
 
   #================================ DNS and Bucket resources ================================
@@ -540,69 +645,76 @@ Resources:
               - TransitionInDays: 30
                 StorageClass: STANDARD_IA
 
-  webAppS3Policy:
-    Type: AWS::IAM::Policy
-    Properties: 
-      PolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Resource: [
-                !Sub "arn:aws:s3:::${myBucket}",
-                !Sub "arn:aws:s3:::${myBucket}/*"
-            ]
-            Action:
-              - 's3:GetObject*'
-              - 's3:PutObject*'
-              - 's3:DeleteObject*'
-      PolicyName: "WebAppS3"
-      Roles: 
-        - CodeDeployEC2ServiceRole
-  
-  webAppServerlessLambdaPolicy:
-    Type: AWS::IAM::Policy
-    Properties: 
-      PolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Resource: "*"
-            Action:
-              - 'sns:List*'
-              - 'sns:Get*'
-              - 'sns:Pub*'
-              - "dynamodb:Get*"
-              - "dynamodb:Put*"
-      PolicyName: "WebAppServerless"
-      Roles: 
-        - CodeDeployEC2ServiceRole
-
 
   #================================ DataBase resources ================================
-  InstanceProfile:
-    Type: AWS::IAM::InstanceProfile
-    Properties: 
-      InstanceProfileName: ec2-instance-profile
-      Path: /
-      Roles: 
-       - CodeDeployEC2ServiceRole
-
   myRDSInstance:
     Type: AWS::RDS::DBInstance
     Properties: 
       DBName: "csye6225"
       Engine: "mysql"
       EngineVersion: "5.7.37"
-      DBInstanceClass: "db.t2.micro"
+      DBInstanceClass: "db.t3.micro"
       AllocatedStorage: "5"
       DBInstanceIdentifier: "csye6225"
       MasterUsername: !Ref DbUserName
       MasterUserPassword: !Ref DbUserPassword
       DBSubnetGroupName: !Ref DBSubnetGroup
       DBParameterGroupName: !Ref DBParameterGroup
-      VPCSecurityGroups: [!Ref databaseSecurityGroup]
+      VPCSecurityGroups: 
+        - !Ref databaseSecurityGroup
       PubliclyAccessible: false
       MultiAZ: false
+      # OptionGroupName: !Ref OracleRDSOptionGroup
+      StorageEncrypted: true
+      KmsKeyId: 
+        Fn::GetAtt: [RdsInstanceKey, Arn]
+
+  RdsInstanceKey:
+    Type: 'AWS::KMS::Key'
+    Properties:
+      Description: A symmetric KMS key for RDS instance
+      EnableKeyRotation: true
+      PendingWindowInDays: 7
+      KeyPolicy:
+        Version: "2012-10-17"
+        Id: key-default-2
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: 'kms:*'
+            Resource: '*'
+          - Sid: Allow administration of the key
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:role/EC2ServiceRole"
+            Action:
+              - 'kms:Create*'
+              - 'kms:Describe*'
+              - 'kms:Enable*'
+              - 'kms:List*'
+              - 'kms:Put*'
+              - 'kms:Update*'
+              - 'kms:Revoke*'
+              - 'kms:Disable*'
+              - 'kms:Get*'
+              - 'kms:Delete*'
+              - 'kms:ScheduleKeyDeletion'
+              - 'kms:CancelKeyDeletion'
+            Resource: '*'
+          - Sid: Allow use of the key
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:role/EC2ServiceRole"
+            Action:
+              - 'kms:DescribeKey'
+              - 'kms:Encrypt'
+              - 'kms:Decrypt'
+              - 'kms:ReEncrypt*'
+              - 'kms:GenerateDataKey'
+              - 'kms:GenerateDataKeyWithoutPlaintext'
+            Resource: '*'
 
   DBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
@@ -615,11 +727,26 @@ Resources:
   DBParameterGroup:
     Type: 'AWS::RDS::DBParameterGroup'
     Properties:
-      Description: CloudFormation MySQL Parameter Group
+      Description: Custom Parameter Group
       Family: mysql5.7
       Parameters:
         sql_mode: IGNORE_SPACE
         max_allowed_packet: 1024
+
+
+  # OracleRDSOptionGroup:
+  #   Type: AWS::RDS::OptionGroup
+  #   Properties: 
+  #     OptionGroupDescription: oracle-options-group
+  #     EngineName: mysql
+  #     MajorEngineVersion: "5.7"
+  #     OptionConfigurations:
+  #       -
+  #         OptionName: SSL
+  #         OptionSettings:
+  #           -
+  #             Name: SQLNET.SSL_VERSION
+  #             Value: 1.2
 
   myDynamoDB:
     Type: AWS::DynamoDB::Table
@@ -628,12 +755,6 @@ Resources:
         - 
           AttributeName: "UserId"
           AttributeType: "S"
-        # - 
-        #   AttributeName: "Token"
-        #   AttributeType: "S"
-        # - 
-        #   AttributeName: "ExpireTime"
-        #   AttributeType: "N"
       KeySchema: 
         - 
           AttributeName: "UserId"
