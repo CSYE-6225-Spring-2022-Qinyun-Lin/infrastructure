@@ -32,7 +32,7 @@ Resources:
       ComputePlatform: Server
 
   # Role for EC2 instance
-  CodeDeployEC2ServiceRole:
+  EC2ServiceRole:
     Type: AWS::IAM::Role
     Properties: 
       AssumeRolePolicyDocument:
@@ -46,7 +46,7 @@ Resources:
               - 'sts:AssumeRole'
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
-      RoleName: CodeDeployEC2ServiceRole
+      RoleName: EC2ServiceRole
   
   # Policy for EC2ServiceRole
   CodeDeployPolicy:
@@ -66,7 +66,7 @@ Resources:
               - 's3:List*'
       PolicyName: "CodeDeploy-EC2-S3"
       Roles:
-        - !Ref CodeDeployEC2ServiceRole
+        - !Ref EC2ServiceRole
   
   # Policies for ghactions user
   GHUploadPolicy:
